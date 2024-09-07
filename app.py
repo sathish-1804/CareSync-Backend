@@ -4,6 +4,7 @@ from flask_migrate import Migrate
 from dotenv import load_dotenv
 import os
 from models import db
+from database import init_db  # Import init_db to initialize the database
 from routes.auth import auth_bp
 from routes.profile import profile_bp
 from routes.health import health_bp
@@ -27,7 +28,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('SQLALCHEMY_DATABASE_URI')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize database and migration
-db.init_app(app)
+init_db(app)  # Initialize the database with engine and session settings
 migrate = Migrate(app, db)
 
 # Register blueprints
