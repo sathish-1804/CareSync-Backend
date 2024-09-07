@@ -1,10 +1,9 @@
-# app.py
 from flask import Flask
 from flask_cors import CORS
 from flask_migrate import Migrate
 from dotenv import load_dotenv
 import os
-from models import db
+from models import db  # Ensure this imports the single SQLAlchemy instance
 from routes.auth import auth_bp
 from routes.profile import profile_bp
 from routes.health import health_bp
@@ -15,7 +14,7 @@ from routes.context import context_bp
 from ocr import ocr_bp
 from routes.claim import claim_bp
 from routes.dashboard import dashboard_bp
-from database import init_db, shutdown_session  # Import the init_db and shutdown_session functions
+from database import init_db, shutdown_session
 
 # Load environment variables
 load_dotenv()
@@ -24,12 +23,12 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app)
 
-# Load configuration from environment variables
+# Configuration
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('SQLALCHEMY_DATABASE_URI')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # Initialize database and migration
-init_db(app)
+init_db(app)  # This should call db.init_app(app) internally
 migrate = Migrate(app, db)
 
 # Register blueprints
@@ -44,7 +43,7 @@ app.register_blueprint(ocr_bp, url_prefix='/ocr')
 app.register_blueprint(claim_bp, url_prefix='/claim')
 app.register_blueprint(dashboard_bp)
 
-# Ensure sessions are properly removed after each request
+# Cleanup database sessions after each request
 @app.teardown_appcontext
 def shutdown_session_on_teardown(exception=None):
     shutdown_session(exception)

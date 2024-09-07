@@ -1,7 +1,7 @@
 from flask_sqlalchemy import SQLAlchemy
 from utils import safe_float
+from database import db
 
-db = SQLAlchemy()
 
 class User(db.Model):
     __tablename__ = 'Users'
