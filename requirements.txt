@@ -13,6 +13,5 @@ Flask-SQLAlchemy
 bcrypt
 google-generativeai
 langchain
-logging
 easyOCR
 sqlalchemy
