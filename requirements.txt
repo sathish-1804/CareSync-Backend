@@ -12,8 +12,6 @@ reportlab
 Flask-SQLAlchemy
 bcrypt
 google-generativeai
-pytesseract
 langchain
-logging
 easyOCR
 sqlalchemy
