@@ -6,7 +6,6 @@ import os
 import google.generativeai as genai
 from models import db, MLModelData, fetch_user_data, map_tests_to_mlmodeldata
 from utils import safe_float, safe_int, clean_json_response
-import pytesseract
 import dotenv
 
 # Load environment variables
@@ -14,9 +13,6 @@ dotenv.load_dotenv()
 
 # Initialize blueprint
 ocr_bp = Blueprint('ocr', __name__)
-
-# Set Tesseract command
-pytesseract.pytesseract.tesseract_cmd = os.getenv('TESSERACT_CMD')
 
 # Configure Generative AI API
 genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
@@ -98,7 +94,7 @@ def process_report():
         db.session.add(ml_model_data)
         db.session.commit()
 
-        return jsonify({"message": "Data Processed Successfully"}), 200
+        return jsonify({"message": "Data Processed Successfully and Uploaded"}), 200
 
     except Exception as e:
         print(f"Exception occurred: {str(e)}")

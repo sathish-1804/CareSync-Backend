@@ -15,4 +15,5 @@ google-generativeai
 pytesseract
 langchain
 logging
+easyOCR
 sqlalchemy

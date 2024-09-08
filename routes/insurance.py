@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify
-from models import db, UserProfile, HealthInformation, LifestyleInformation, MLModelData, PredictionResults, InsurancePlans, CoverageDetails, Copayments, AdditionalBenefits, PolicyExclusions
+from models import db, User, UserProfile, HealthInformation, LifestyleInformation, MLModelData, PredictionResults, InsurancePlans, CoverageDetails, Copayments, AdditionalBenefits, PolicyExclusions
 from datetime import date, timedelta
 import random
 from utils import upload_insurance
@@ -301,6 +301,7 @@ class InsurancePlanGenerator:
 @insurance_bp.route('/generate_plan/<int:user_id>', methods=['GET'])
 def generate_plan(user_id):
     # Retrieve user details from the database
+    user = User.query.filter_by(user_id=user_id).first()
     user_profile = UserProfile.query.filter_by(user_id=user_id).first()
     health_info = HealthInformation.query.filter_by(user_id=user_id).first()
     lifestyle_info = LifestyleInformation.query.filter_by(user_id=user_id).first()
@@ -311,56 +312,63 @@ def generate_plan(user_id):
         return jsonify({"error": "User data is incomplete"}), 400
 
     # Generate insurance plan
-    generator = InsurancePlanGenerator()
-    plan = generator.generate_plan(user_profile, health_info, lifestyle_info, ml_model_data, risk_predictions)
+    try:
+        generator = InsurancePlanGenerator()
+        plan = generator.generate_plan(user_profile, health_info, lifestyle_info, ml_model_data, risk_predictions)
 
-    # Generate the PDF for the plan
-    pdf_buffer, pdf_filename = generator.generate_plan_pdf(plan, user_profile)
+        # Generate the PDF for the plan
+        pdf_buffer, pdf_filename = generator.generate_plan_pdf(plan, user_profile)
+        
+        # Upload the PDF to Azure Cloud and get the file link
+        file_link = upload_insurance(pdf_buffer, pdf_filename)
+        
+        # Insert generated plan into the database
+        insurance_plan = InsurancePlans(
+            user_id=user_id,
+            company=plan['company'],
+            plan_name=plan['plan_name'],
+            plan_type=plan['plan_type'],
+            network_type=plan['network_type'],
+            monthly_premium=plan['monthly_premium'],
+            annual_premium=plan['annual_premium'],
+            sum_insured=plan['sum_insured'],
+            deductible=plan['deductible'],
+            out_of_pocket_max=plan['out_of_pocket_max'],
+            policy_number=plan['policy_number'],
+            effective_date=plan['effective_date'],
+            expiration_date=plan['expiration_date'],
+            file_link=file_link  
+        )
+        db.session.add(insurance_plan)
+        db.session.commit()
+
+        # Insert related details
+        for item in plan['coverage_details']:
+            coverage_detail = CoverageDetails(plan_id=insurance_plan.plan_id, coverage_item=item)
+            db.session.add(coverage_detail)
+
+        for service, amount in plan['copayments'].items():
+            copayment = Copayments(plan_id=insurance_plan.plan_id, service=service, amount=amount)
+            db.session.add(copayment)
+
+        for benefit in plan['additional_benefits']:
+            additional_benefit = AdditionalBenefits(plan_id=insurance_plan.plan_id, benefit_description=benefit)
+            db.session.add(additional_benefit)
+
+        policy_exclusion = PolicyExclusions(
+            plan_id=insurance_plan.plan_id,
+            general_exclusions=', '.join(plan['general_exclusions']),
+            waiting_periods=', '.join([f"{k}: {v} months" for k, v in plan['waiting_periods'].items()])
+        )
+        db.session.add(policy_exclusion)
+        db.session.commit()
+
+        user.user_details = True
+        db.session.commit()
+
+        # Return generated plan details as JSON
+        plan['file_link'] = file_link  # Include the file link in the response
+        return jsonify({'message': 'Insurance plan generated successfully', 'file_link': file_link}), 200
     
-    # Upload the PDF to Azure Cloud and get the file link
-    file_link = upload_insurance(pdf_buffer, pdf_filename)
-    
-    # Insert generated plan into the database
-    insurance_plan = InsurancePlans(
-        user_id=user_id,
-        company=plan['company'],
-        plan_name=plan['plan_name'],
-        plan_type=plan['plan_type'],
-        network_type=plan['network_type'],
-        monthly_premium=plan['monthly_premium'],
-        annual_premium=plan['annual_premium'],
-        sum_insured=plan['sum_insured'],
-        deductible=plan['deductible'],
-        out_of_pocket_max=plan['out_of_pocket_max'],
-        policy_number=plan['policy_number'],
-        effective_date=plan['effective_date'],
-        expiration_date=plan['expiration_date'],
-        file_link=file_link  # Store the file link
-    )
-    db.session.add(insurance_plan)
-    db.session.commit()
-
-    # Insert related details
-    for item in plan['coverage_details']:
-        coverage_detail = CoverageDetails(plan_id=insurance_plan.plan_id, coverage_item=item)
-        db.session.add(coverage_detail)
-
-    for service, amount in plan['copayments'].items():
-        copayment = Copayments(plan_id=insurance_plan.plan_id, service=service, amount=amount)
-        db.session.add(copayment)
-
-    for benefit in plan['additional_benefits']:
-        additional_benefit = AdditionalBenefits(plan_id=insurance_plan.plan_id, benefit_description=benefit)
-        db.session.add(additional_benefit)
-
-    policy_exclusion = PolicyExclusions(
-        plan_id=insurance_plan.plan_id,
-        general_exclusions=', '.join(plan['general_exclusions']),
-        waiting_periods=', '.join([f"{k}: {v} months" for k, v in plan['waiting_periods'].items()])
-    )
-    db.session.add(policy_exclusion)
-    db.session.commit()
-
-    # Return generated plan details as JSON
-    plan['file_link'] = file_link  # Include the file link in the response
-    return jsonify({'message': 'Insurance plan generated successfully', 'file_link': file_link}), 200
+    except Exception as e:
+        return jsonify({"error": f"An error occurred while generating the insurance plan: {str(e)}"}), 500

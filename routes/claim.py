@@ -2,9 +2,9 @@ from flask import Blueprint, request, jsonify
 from PIL import Image
 from models import db, User, ClaimStatus  
 from sqlalchemy import text, func
-import pytesseract
 import logging
 import os
+import easyocr  # Import EasyOCR
 from langchain_community.utilities.sql_database import SQLDatabase
 from langchain_anthropic import ChatAnthropic
 from langchain.chains import create_sql_query_chain
@@ -22,7 +22,8 @@ llm = ChatAnthropic(model="claude-3-5-sonnet-20240620")
 db_llm = SQLDatabase.from_uri(os.getenv('SQLALCHEMY_DATABASE_URI'))
 chain = create_sql_query_chain(llm, db_llm)
 
-pytesseract.pytesseract.tesseract_cmd = 'C:\\Program Files\\Tesseract-OCR\\tesseract.exe'
+# Initialize EasyOCR reader
+reader = easyocr.Reader(['en'])  # Specify 'en' for English
 
 @claim_bp.route('/process_claim', methods=['POST'])
 def process_claim_api():
@@ -56,12 +57,18 @@ def process_claim_api():
     except Exception as e:
         logging.error(f"Unexpected error: {str(e)}")
         return jsonify({"error": "An internal error occurred"}), 500
+    
 
 def process_claim(bill_image, reason_for_treatment, user_id):
     """Processes the insurance claim by extracting text from the bill and verifying the treatment."""
     try:
-        # Extract text from the bill image using OCR
-        bill_text = pytesseract.image_to_string(bill_image)
+        # Convert the bill image to a format that EasyOCR can read (e.g., saving to disk or converting to numpy array)
+        bill_image_path = 'temp_bill_image.jpg'
+        bill_image.save(bill_image_path)
+
+        # Extract text from the bill image using EasyOCR
+        result = reader.readtext(bill_image_path)
+        bill_text = ' '.join([text[1] for text in result])
         logging.info(f"Extracted bill text: {bill_text}")
     except Exception as e:
         logging.error(f"Error processing hospital bill: {str(e)}")
@@ -117,6 +124,11 @@ def process_claim(bill_image, reason_for_treatment, user_id):
     except Exception as e:
         logging.error(f"Error fetching data from the database: {str(e)}")
         return {"error": f"Error fetching data from the database: {str(e)}"}
+    finally:
+        # Ensure that the temporary file is removed after processing
+        if os.path.exists(bill_image_path):
+            os.remove(bill_image_path)
+            logging.info(f"Temporary bill image '{bill_image_path}' removed.")
 
     # Use the LLM and query to verify the treatment
     decision, reason = verify_treatment(reason_for_treatment, medical_details, bill_text, llm, CONSTANT_SQL_QUERY)
