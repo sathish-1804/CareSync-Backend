@@ -22,7 +22,7 @@ llm = ChatAnthropic(model="claude-3-5-sonnet-20240620")
 db_llm = SQLDatabase.from_uri(os.getenv('SQLALCHEMY_DATABASE_URI'))
 chain = create_sql_query_chain(llm, db_llm)
 # Use this path for Linux environments like Render
-pytesseract.pytesseract.tesseract_cmd = '/usr/bin/tesseract'
+pytesseract.pytesseract.tesseract_cmd = os.getenv('TESSERACT_CMD')
 
 @claim_bp.route('/process_claim', methods=['POST'])
 def process_claim_api():
