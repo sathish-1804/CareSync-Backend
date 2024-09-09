@@ -38,8 +38,8 @@ jobs:
       uses: azure/docker-login@v1
       with:
         login-server: ${{ secrets.CONTAINER_REGISTRY }}
-        username: ${{ secrets.REGISTRY_USERNAME }}
-        password: ${{ secrets.REGISTRY_PASSWORD }}
+        username: ${{ secrets.REGISTRY_USERNAME }}  # Verify this secret is correctly defined
+        password: ${{ secrets.REGISTRY_PASSWORD }}  # Verify this secret is correctly defined
     
     - name: 'Build and push Docker image'
       run: |
