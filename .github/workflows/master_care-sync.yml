@@ -16,18 +16,14 @@ jobs:
     - name: 'Checkout code'
       uses: actions/checkout@v4
     
-    - name: 'Debug: List available secrets'
+    - name: 'Debug: Check required secrets'
       run: |
-        echo "Available secret names:"
-        echo "${{ toJson(secrets) }}" | jq 'keys'
-    
-    - name: 'Debug: Check REGISTRY_USERNAME'
-      run: |
-        if [ -n "${{ secrets.REGISTRY_USERNAME }}" ]; then
-          echo "REGISTRY_USERNAME is set"
-        else
-          echo "REGISTRY_USERNAME is not set"
-        fi
+        echo "Checking required secrets:"
+        [ -n "${{ secrets.REGISTRY_USERNAME }}" ] && echo "REGISTRY_USERNAME is set" || echo "REGISTRY_USERNAME is not set"
+        [ -n "${{ secrets.REGISTRY_PASSWORD }}" ] && echo "REGISTRY_PASSWORD is set" || echo "REGISTRY_PASSWORD is not set"
+        [ -n "${{ secrets.CONTAINER_REGISTRY }}" ] && echo "CONTAINER_REGISTRY is set" || echo "CONTAINER_REGISTRY is not set"
+        [ -n "${{ secrets.AZURE_CREDENTIALS }}" ] && echo "AZURE_CREDENTIALS is set" || echo "AZURE_CREDENTIALS is not set"
+        [ -n "${{ secrets.AZURE_FUNCTIONAPP_NAME }}" ] && echo "AZURE_FUNCTIONAPP_NAME is set" || echo "AZURE_FUNCTIONAPP_NAME is not set"
     
     - name: 'Login to Azure'
       uses: azure/login@v2
@@ -38,8 +34,8 @@ jobs:
       uses: azure/docker-login@v1
       with:
         login-server: ${{ secrets.CONTAINER_REGISTRY }}
-        username: ${{ secrets.REGISTRY_USERNAME }}  # Verify this secret is correctly defined
-        password: ${{ secrets.REGISTRY_PASSWORD }}  # Verify this secret is correctly defined
+        username: ${{ secrets.REGISTRY_USERNAME }}
+        password: ${{ secrets.REGISTRY_PASSWORD }}
     
     - name: 'Build and push Docker image'
       run: |
