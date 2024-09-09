@@ -13,7 +13,21 @@ jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v4
+    - name: 'Checkout code'
+      uses: actions/checkout@v4
+    
+    - name: 'Debug: List available secrets'
+      run: |
+        echo "Available secret names:"
+        echo "${{ toJson(secrets) }}" | jq 'keys'
+    
+    - name: 'Debug: Check REGISTRY_USERNAME'
+      run: |
+        if [ -n "${{ secrets.REGISTRY_USERNAME }}" ]; then
+          echo "REGISTRY_USERNAME is set"
+        else
+          echo "REGISTRY_USERNAME is not set"
+        fi
     
     - name: 'Login to Azure'
       uses: azure/login@v2
