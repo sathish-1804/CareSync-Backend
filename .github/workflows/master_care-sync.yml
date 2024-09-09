@@ -7,7 +7,7 @@ on:
 
 env:
   AZURE_FUNCTIONAPP_NAME: my-caresync-app   # Updated to match your Function App name
-  CONTAINER_REGISTRY: mycaresyncregistry.azurecr.io   # Set this to your container registry name
+  CONTAINER_REGISTRY: caresyncregistry.azurecr.io   # Set this to your container registry name
 
 jobs:
   build-and-deploy:
