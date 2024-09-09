@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, jsonify
 from flask_cors import CORS
 from flask_migrate import Migrate
 from dotenv import load_dotenv
@@ -42,6 +42,10 @@ app.register_blueprint(insurance_bp, url_prefix='/insurance')
 app.register_blueprint(ocr_bp, url_prefix='/ocr')
 app.register_blueprint(claim_bp, url_prefix='/claim')
 app.register_blueprint(dashboard_bp)
+
+@app.route('/')
+def home():
+    return jsonify(message="Welcome to the API!"), 200
 
 # Cleanup database sessions after each request
 @app.teardown_appcontext
