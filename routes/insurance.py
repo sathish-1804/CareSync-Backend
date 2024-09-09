@@ -343,17 +343,23 @@ def generate_plan(user_id):
         db.session.commit()
 
         # Insert related details
+        coverage_details_list = []
         for item in plan['coverage_details']:
             coverage_detail = CoverageDetails(plan_id=insurance_plan.plan_id, coverage_item=item)
             db.session.add(coverage_detail)
+            coverage_details_list.append(item)
 
+        copayments_list = []
         for service, amount in plan['copayments'].items():
             copayment = Copayments(plan_id=insurance_plan.plan_id, service=service, amount=amount)
             db.session.add(copayment)
+            copayments_list.append({'service': service, 'amount': amount})
 
+        additional_benefits_list = []
         for benefit in plan['additional_benefits']:
             additional_benefit = AdditionalBenefits(plan_id=insurance_plan.plan_id, benefit_description=benefit)
             db.session.add(additional_benefit)
+            additional_benefits_list.append(benefit)
 
         policy_exclusion = PolicyExclusions(
             plan_id=insurance_plan.plan_id,
@@ -366,9 +372,32 @@ def generate_plan(user_id):
         user.user_details = True
         db.session.commit()
 
-        # Return generated plan details as JSON
-        plan['file_link'] = file_link  # Include the file link in the response
-        return jsonify({'message': 'Insurance plan generated successfully', 'file_link': file_link}), 200
+        # Prepare the JSON response with all insurance details
+        response = {
+            'message': 'Insurance plan generated successfully',
+            'file_link': file_link,
+            'insurance_details': {
+                'company': plan['company'],
+                'plan_name': plan['plan_name'],
+                'plan_type': plan['plan_type'],
+                'network_type': plan['network_type'],
+                'monthly_premium': plan['monthly_premium'],
+                'annual_premium': plan['annual_premium'],
+                'sum_insured': plan['sum_insured'],
+                'deductible': plan['deductible'],
+                'out_of_pocket_max': plan['out_of_pocket_max'],
+                'policy_number': plan['policy_number'],
+                'effective_date': plan['effective_date'].strftime('%Y-%m-%d'),
+                'expiration_date': plan['expiration_date'].strftime('%Y-%m-%d'),
+                'coverage_details': coverage_details_list,
+                'copayments': copayments_list,
+                'additional_benefits': additional_benefits_list,
+                'general_exclusions': plan['general_exclusions'],
+                'waiting_periods': plan['waiting_periods']
+            }
+        }
+        
+        return jsonify(response), 200
     
     except Exception as e:
         return jsonify({"error": f"An error occurred while generating the insurance plan: {str(e)}"}), 500

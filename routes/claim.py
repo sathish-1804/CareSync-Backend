@@ -1,15 +1,14 @@
 from flask import Blueprint, request, jsonify
 from PIL import Image
-from models import db, User, ClaimStatus  
+from models import db, User, ClaimStatus
 from sqlalchemy import text, func
 import logging
 import os
-import easyocr  # Import EasyOCR
-from langchain_community.utilities.sql_database import SQLDatabase
-from langchain_anthropic import ChatAnthropic
-from langchain.chains import create_sql_query_chain
+import base64
+from io import BytesIO
 import dotenv
 import re
+import google.generativeai as genai  # Import Google Gemini API
 
 # Load environment variables
 dotenv.load_dotenv()
@@ -17,13 +16,9 @@ dotenv.load_dotenv()
 # Initialize blueprint
 claim_bp = Blueprint('claim', __name__)
 
-# Configure the LLM and SQLDatabase
-llm = ChatAnthropic(model="claude-3-5-sonnet-20240620")
-db_llm = SQLDatabase.from_uri(os.getenv('SQLALCHEMY_DATABASE_URI'))
-chain = create_sql_query_chain(llm, db_llm)
-
-# Initialize EasyOCR reader
-reader = easyocr.Reader(['en'])  # Specify 'en' for English
+# Configure Generative AI API
+genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
+model = genai.GenerativeModel('gemini-1.5-flash-latest')
 
 @claim_bp.route('/process_claim', methods=['POST'])
 def process_claim_api():
@@ -35,11 +30,26 @@ def process_claim_api():
         if not bill_file or not reason_for_treatment or not user_id:
             return jsonify({"error": "Missing required inputs"}), 400
 
-        bill_image = Image.open(bill_file)
         bill_name = bill_file.filename
+        file_extension = bill_name.lower().split('.')[-1]
+
+        # Determine the file type and convert to base64
+        if file_extension in ['jpg', 'jpeg', 'png']:
+            # Process image files
+            bill_image = Image.open(bill_file)
+            buffered = BytesIO()
+            bill_image.save(buffered, format="JPEG")
+            bill_base64 = base64.b64encode(buffered.getvalue()).decode('utf-8')
+            mime_type = "image/jpeg"
+        elif file_extension == 'pdf':
+            # Process PDF files
+            bill_base64 = base64.b64encode(bill_file.read()).decode('utf-8')
+            mime_type = "application/pdf"
+        else:
+            return jsonify({"error": "Unsupported file format. Please upload a JPEG, PNG, or PDF file."}), 400
 
         # Call the process_claim function
-        result = process_claim(bill_image, reason_for_treatment, user_id)
+        result = process_claim(bill_base64, mime_type, reason_for_treatment, user_id)
 
         # Insert the decision, reason, and bill name into the ClaimStatus table
         if 'decision' in result and 'reason' in result:
@@ -57,19 +67,25 @@ def process_claim_api():
     except Exception as e:
         logging.error(f"Unexpected error: {str(e)}")
         return jsonify({"error": "An internal error occurred"}), 500
-    
 
-def process_claim(bill_image, reason_for_treatment, user_id):
+
+def process_claim(bill_base64, mime_type, reason_for_treatment, user_id):
     """Processes the insurance claim by extracting text from the bill and verifying the treatment."""
     try:
-        # Convert the bill image to a format that EasyOCR can read (e.g., saving to disk or converting to numpy array)
-        bill_image_path = 'temp_bill_image.jpg'
-        bill_image.save(bill_image_path)
+        # Extract text from the bill using Gemini API
+        prompt = """
+        Extract the exact text content from the hospital bill. Do not alter or interpret the content.
+        Provide the extracted text as is.
+        """
+        genai_response = model.generate_content([prompt, {"mime_type": mime_type, "data": bill_base64}])
 
-        # Extract text from the bill image using EasyOCR
-        result = reader.readtext(bill_image_path)
-        bill_text = ' '.join([text[1] for text in result])
+        if not genai_response or not genai_response.text:
+            logging.error("No response from Gemini API or response is empty.")
+            return {"error": "No response from Gemini API or response is empty."}
+
+        bill_text = genai_response.text.strip()
         logging.info(f"Extracted bill text: {bill_text}")
+
     except Exception as e:
         logging.error(f"Error processing hospital bill: {str(e)}")
         return {"error": f"Error processing hospital bill: {str(e)}"}
@@ -124,17 +140,13 @@ def process_claim(bill_image, reason_for_treatment, user_id):
     except Exception as e:
         logging.error(f"Error fetching data from the database: {str(e)}")
         return {"error": f"Error fetching data from the database: {str(e)}"}
-    finally:
-        # Ensure that the temporary file is removed after processing
-        if os.path.exists(bill_image_path):
-            os.remove(bill_image_path)
-            logging.info(f"Temporary bill image '{bill_image_path}' removed.")
 
-    # Use the LLM and query to verify the treatment
-    decision, reason = verify_treatment(reason_for_treatment, medical_details, bill_text, llm, CONSTANT_SQL_QUERY)
+    # Use Gemini API to verify the treatment and generate a decision
+    decision, reason = verify_treatment(reason_for_treatment, medical_details, bill_text, CONSTANT_SQL_QUERY)
     return {"decision": decision, "reason": reason}
 
-def verify_treatment(reason, medical_details, bill_text, llm, query):
+
+def verify_treatment(reason, medical_details, bill_text, query):
     """Verifies if the treatment in the bill is covered based on the provided details."""
     prompt = f"""
     Please evaluate the following case:
@@ -153,13 +165,13 @@ def verify_treatment(reason, medical_details, bill_text, llm, query):
     - If the treatment is not covered under the policy, respond with 'Answer: Claim Cancelled' followed by a brief 2-3 line reason.
     - If you're unsure and a manual review is needed, respond with 'Answer: Claim in review' followed by a brief 2-3 line reason.
 
-    Ensure you to replace user with you. Should be like conveying this message to user. and the reason should be less than 100 characters
+    Ensure you to replace user with you. Should be like conveying this message to user. and the reason should be less than 100 characters.
     Return format: 'Answer: Claim Approved/Claim Cancelled/Claim in review. Reason: <reason>'
     """
     
-    response = llm.invoke(prompt)
-    response_text = response.content
-    print(f"Response from LLM: {response_text}")
+    response = model.generate_content(prompt)
+    response_text = response.text.strip()
+    logging.info(f"Response from Gemini: {response_text}")
     
     match = re.search(r'Answer:\s*(Claim Approved|Claim Cancelled|Claim in review)', response_text, re.IGNORECASE)
     reason_match = re.search(r'(?:Reason:)\s*(.*)', response_text, re.IGNORECASE)
@@ -168,8 +180,9 @@ def verify_treatment(reason, medical_details, bill_text, llm, query):
         reason = reason_match.group(1).strip() if reason_match else "No reason provided."
         return decision, reason
     else:
-        logging.error("Unable to determine the claim status from the LLM response.")
-        return "Error: Unable to determine the claim status from the LLM response."
+        logging.error("Unable to determine the claim status from the Gemini response.")
+        return "Error: Unable to determine the claim status from the Gemini response."
+
 
 @claim_bp.route('/retrieve_claims/<int:user_id>', methods=['GET'])
 def retrieve_claims(user_id):
