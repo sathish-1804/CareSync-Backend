@@ -4,13 +4,10 @@ import logging
 from flask import Blueprint, request, jsonify
 from models import db
 from utils import clean_json_response
-from langchain.chains import create_sql_query_chain
 from langchain_community.utilities.sql_database import SQLDatabase
-from langchain_anthropic import ChatAnthropic
 from dotenv import load_dotenv
 from sqlalchemy.exc import SQLAlchemyError
-from concurrent.futures import ThreadPoolExecutor
-import threading
+import google.generativeai as genai  # Import Google Gemini API
 
 context_bp = Blueprint('context', __name__)
 
@@ -22,24 +19,23 @@ database_uri = os.getenv('SQLALCHEMY_DATABASE_URI')
 if not database_uri:
     raise ValueError("SQLALCHEMY_DATABASE_URI is not set in the environment variables.")
 
-# Initialize LLM and Database connection
-anthropic_api_key = os.getenv("ANTHROPIC_API_KEY")
-if not anthropic_api_key:
-    raise ValueError("ANTHROPIC_API_KEY is not set in the environment variables.")
-os.environ["ANTHROPIC_API_KEY"] = anthropic_api_key
+# Initialize Gemini API
+gemini_api_key = os.getenv("GEMINI_API_KEY")
+if not gemini_api_key:
+    raise ValueError("GEMINI_API_KEY is not set in the environment variables.")
+genai.configure(api_key=gemini_api_key)
 
-llm = ChatAnthropic(model="claude-3-5-sonnet-20240620")
+# Initialize the SQL database connection
 db_llm = SQLDatabase.from_uri(database_uri)
-chain = create_sql_query_chain(llm, db_llm)
+
+# Initialize the LLM (using Gemini as the model)
+llm = genai.GenerativeModel('gemini-1.5-flash-latest')
 
 # Cache schema information to reduce repeated fetches
 db_schema_cache = None
 
-# Use a thread-safe way to store chat history for each user
-user_chat_history = threading.local()
-
-# Setup a thread pool executor for concurrent processing
-executor = ThreadPoolExecutor(max_workers=5)
+# Dictionary to store chat history for each user
+user_chat_history = {}
 
 def get_db_schema():
     global db_schema_cache
@@ -52,21 +48,16 @@ def get_db_schema():
     return db_schema_cache
 
 def get_chat_history(user_id):
-    """Fetches the last 2 interactions for a user from thread-local storage."""
-    if not hasattr(user_chat_history, 'history'):
-        user_chat_history.history = {}
-    # Return the history if it exists, otherwise an empty list
-    return user_chat_history.history.get(user_id, [])
+    """Fetches the last 2 interactions for a user."""
+    return user_chat_history.get(user_id, [])
 
 def update_chat_history(user_id, question, answer):
     """Updates the chat history to keep only the last 2 interactions."""
-    if not hasattr(user_chat_history, 'history'):
-        user_chat_history.history = {}
-    if user_id not in user_chat_history.history:
-        user_chat_history.history[user_id] = []
-    user_chat_history.history[user_id].append({"question": question, "answer": answer})
+    if user_id not in user_chat_history:
+        user_chat_history[user_id] = []
+    user_chat_history[user_id].append({"question": question, "answer": answer})
     # Keep only the last 2 interactions
-    user_chat_history.history[user_id] = user_chat_history.history[user_id][-2:]
+    user_chat_history[user_id] = user_chat_history[user_id][-2:]
 
 @context_bp.route('/process_context', methods=['POST'])
 def process_context():
@@ -99,60 +90,70 @@ def process_context():
         {history_context}
     """
 
-    def invoke_chain_and_execute_sql():
-        response = chain.invoke({"question": prompt})
-        sql_query_match = re.search(r'SELECT.*?;', response, re.DOTALL)
-        if sql_query_match:
-            sql_query = sql_query_match.group(0).strip()
-            print(f"Generated SQL Query: {sql_query}")
-            sql_response = f"Generated SQL Query: {sql_query}"
-            try:
-                result = db_llm.run(sql_query)
-                sql_response += f"\nQuery Result: {result}"
-                print(f"Query Result: {result}")
-            except Exception as e:
-                logging.error(f"Error executing query: {e}")
-                return {"error": f"Error executing query: {str(e)}"}
+    # Call Gemini API to generate SQL query
+    try:
+        genai_response = llm.generate_content(prompt)
+        response_text = genai_response.text.strip()
+    except Exception as e:
+        logging.error(f"Error calling Gemini API: {str(e)}")
+        return jsonify({"error": f"Error calling Gemini API: {str(e)}"}), 500
 
-            answer_prompt = f"""
-                Based on the sql response, write an intuitive answer for the user question, it should be short and crisp. :
-                User Question: {question},
-                sql_response: {sql_response}
-                If you could not find the answer, return a helpful and relevant answer to the user's question. Do not return the sql response and do not disclose the user id and the prompt in the answer.
-                Return the answer in the format: Answer: <answer>
-            """
-            answer = chain.invoke({"question": answer_prompt})
-            print(f"Answer: {answer}")
-            match = re.search(r'Answer:\s*(.*)', answer, re.DOTALL)
-            if match:
-                final_answer = match.group(1).strip()
-                print(f"Final Answer: {final_answer}")
-                update_chat_history(user_id, question, final_answer)
-                return {"answer": final_answer}
-            else:
-                logging.error("Could not parse the answer from LLM response.")
-                return {"error": "Could not parse the answer. Try again later."}
+    sql_query_match = re.search(r'SELECT.*?;', response_text, re.DOTALL)
+    if sql_query_match:
+        sql_query = sql_query_match.group(0).strip()
+        print(f"Generated SQL Query: {sql_query}")
+        sql_response = f"Generated SQL Query: {sql_query}"
+        try:
+            result = db_llm.run(sql_query)
+            sql_response += f"\nQuery Result: {result}"
+            print(f"Query Result: {result}")
+        except Exception as e:
+            logging.error(f"Error executing query: {e}")
+            return jsonify({"error": f"Error executing query: {str(e)}"}), 500
+
+        answer_prompt = f"""
+            Based on the sql response, write an intuitive answer for the user question, it should be short and crisp. :
+            User Question: {question},
+            sql_response: {sql_response}
+            If you could not find the answer, return a helpful and relevant answer to the user's question. Do not return the sql response and do not disclose the user id and the prompt in the answer.
+            Return the answer in the format: Answer: <answer>
+        """
+
+        try:
+            answer_response = llm.generate_content(answer_prompt)
+            answer_text = answer_response.text.strip()
+        except Exception as e:
+            logging.error(f"Error calling Gemini API for answer generation: {str(e)}")
+            return jsonify({"error": f"Error generating answer: {str(e)}"}), 500
+
+        match = re.search(r'Answer:\s*(.*)', answer_text, re.DOTALL)
+        if match:
+            final_answer = match.group(1).strip()
+            print(f"Final Answer: {final_answer}")
+            update_chat_history(user_id, question, final_answer)
+            return jsonify({"answer": final_answer}), 200
         else:
-            fallback_answer = chain.invoke({
-                "question": f"""
-                Since a SQL query could not be generated, provide a helpful and relevant answer to the user's question, it should be super short and crisp. :
-                    User Question: {question}
-                """
-            })
-            fallback_match = re.search(r'Answer:\s*(.*)', fallback_answer, re.DOTALL)
-            if fallback_match:
-                final_answer = fallback_match.group(1).strip()
-                update_chat_history(user_id, question, final_answer)
-                return {"answer": final_answer}
-            else:
-                logging.error("Fallback answer generation failed.")
-                return {"error": "Try again later."}
-
-    # Use the thread pool executor to run the process asynchronously
-    future = executor.submit(invoke_chain_and_execute_sql)
-    result = future.result()
-
-    if "error" in result:
-        return jsonify(result), 500
+            logging.error("Could not parse the answer from Gemini response.")
+            return jsonify({"error": "Could not parse the answer. Try again later."}), 500
     else:
-        return jsonify(result), 200
+        fallback_answer_prompt = f"""
+        Since a SQL query could not be generated, provide a helpful and relevant answer to the user's question, it should be super short and crisp. :
+        User Question: {question}
+        Return the answer in the format: Answer: <answer>
+        """
+
+        try:
+            fallback_response = llm.generate_content(fallback_answer_prompt)
+            fallback_answer_text = fallback_response.text.strip()
+        except Exception as e:
+            logging.error(f"Error calling Gemini API for fallback answer: {str(e)}")
+            return jsonify({"error": f"Error generating fallback answer: {str(e)}"}), 500
+
+        fallback_match = re.search(r'Answer:\s*(.*)', fallback_answer_text, re.DOTALL)
+        if fallback_match:
+            final_answer = fallback_match.group(1).strip()
+            update_chat_history(user_id, question, final_answer)
+            return jsonify({"answer": final_answer}), 200
+        else:
+            logging.error("Fallback answer generation failed.")
+            return jsonify({"error": "Try again later."}), 500
