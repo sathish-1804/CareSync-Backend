@@ -19,11 +19,35 @@ jobs:
     - name: 'Debug: Check required secrets'
       run: |
         echo "Checking required secrets:"
-        [ -n "${{ secrets.REGISTRY_USERNAME }}" ] && echo "REGISTRY_USERNAME is set" || echo "REGISTRY_USERNAME is not set"
-        [ -n "${{ secrets.REGISTRY_PASSWORD }}" ] && echo "REGISTRY_PASSWORD is set" || echo "REGISTRY_PASSWORD is not set"
-        [ -n "${{ secrets.CONTAINER_REGISTRY }}" ] && echo "CONTAINER_REGISTRY is set" || echo "CONTAINER_REGISTRY is not set"
-        [ -n "${{ secrets.AZURE_CREDENTIALS }}" ] && echo "AZURE_CREDENTIALS is set" || echo "AZURE_CREDENTIALS is not set"
-        [ -n "${{ secrets.AZURE_FUNCTIONAPP_NAME }}" ] && echo "AZURE_FUNCTIONAPP_NAME is set" || echo "AZURE_FUNCTIONAPP_NAME is not set"
+        if [ -n "${{ secrets.REGISTRY_USERNAME }}" ]; then 
+          echo "REGISTRY_USERNAME is set"; 
+        else 
+          echo "REGISTRY_USERNAME is not set"; 
+        fi
+        
+        if [ -n "${{ secrets.REGISTRY_PASSWORD }}" ]; then 
+          echo "REGISTRY_PASSWORD is set"; 
+        else 
+          echo "REGISTRY_PASSWORD is not set"; 
+        fi
+
+        if [ -n "${{ secrets.CONTAINER_REGISTRY }}" ]; then 
+          echo "CONTAINER_REGISTRY is set"; 
+        else 
+          echo "CONTAINER_REGISTRY is not set"; 
+        fi
+
+        if [ -n "${{ secrets.AZURE_CREDENTIALS }}" ]; then 
+          echo "AZURE_CREDENTIALS is set"; 
+        else 
+          echo "AZURE_CREDENTIALS is not set"; 
+        fi
+
+        if [ -n "${{ secrets.AZURE_FUNCTIONAPP_NAME }}" ]; then 
+          echo "AZURE_FUNCTIONAPP_NAME is set"; 
+        else 
+          echo "AZURE_FUNCTIONAPP_NAME is not set"; 
+        fi
     
     - name: 'Login to Azure'
       uses: azure/login@v2
