@@ -6,34 +6,34 @@ on:
       - master  # Or your default branch name
 
 env:
-  AZURE_FUNCTIONAPP_NAME: my-caresync-app   # Updated to match your Function App name
-  CONTAINER_REGISTRY: caresyncregistry.azurecr.io   # Set this to your container registry name
+  AZURE_FUNCTIONAPP_NAME: ${{ secrets.AZURE_FUNCTIONAPP_NAME }}
+  CONTAINER_REGISTRY: ${{ secrets.CONTAINER_REGISTRY }}
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3  # Updated to v3
+    - uses: actions/checkout@v4
     
     - name: 'Login to Azure'
-      uses: azure/login@v1
+      uses: azure/login@v2
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
     
-    - name: 'Build and push image'
+    - name: 'Login to Azure Container Registry'
       uses: azure/docker-login@v1
       with:
-        login-server: ${{ env.CONTAINER_REGISTRY }}
+        login-server: ${{ secrets.CONTAINER_REGISTRY }}
         username: ${{ secrets.REGISTRY_USERNAME }}
         password: ${{ secrets.REGISTRY_PASSWORD }}
     
     - name: 'Build and push Docker image'
       run: |
-        docker build . -t ${{ env.CONTAINER_REGISTRY }}/${{ env.AZURE_FUNCTIONAPP_NAME }}:${{ github.sha }}
-        docker push ${{ env.CONTAINER_REGISTRY }}/${{ env.AZURE_FUNCTIONAPP_NAME }}:${{ github.sha }}
+        docker build . -t ${{ secrets.CONTAINER_REGISTRY }}/${{ secrets.AZURE_FUNCTIONAPP_NAME }}:${{ github.sha }}
+        docker push ${{ secrets.CONTAINER_REGISTRY }}/${{ secrets.AZURE_FUNCTIONAPP_NAME }}:${{ github.sha }}
     
     - name: 'Deploy to Azure Functions'
       uses: Azure/functions-container-action@v1
       with:
-        app-name: ${{ env.AZURE_FUNCTIONAPP_NAME }}
-        image: ${{ env.CONTAINER_REGISTRY }}/${{ env.AZURE_FUNCTIONAPP_NAME }}:${{ github.sha }}
+        app-name: ${{ secrets.AZURE_FUNCTIONAPP_NAME }}
+        image: ${{ secrets.CONTAINER_REGISTRY }}/${{ secrets.AZURE_FUNCTIONAPP_NAME }}:${{ github.sha }}
