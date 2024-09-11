@@ -10,6 +10,7 @@ python-dotenv
 mysql-connector-python
 Flask-SQLAlchemy
 bcrypt
+pillow
 google-generativeai
 langchain
 sqlalchemy
