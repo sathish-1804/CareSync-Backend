@@ -45,7 +45,7 @@ app.register_blueprint(dashboard_bp)
 
 @app.route('/')
 def home():
-    return jsonify(message="Welcome to the API!"), 200
+    return jsonify(message="API Working"), 200
 
 # Cleanup database sessions after each request
 @app.teardown_appcontext
