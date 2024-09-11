@@ -1,7 +1,6 @@
 from flask import Blueprint, request, jsonify
 from models import db, User, UserProfile, InsurancePlans
 from utils import hash_password, check_password
-from sqlalchemy.orm import joinedload
 
 auth_bp = Blueprint('auth', __name__)
 
@@ -40,24 +39,20 @@ def login():
     else:
         return jsonify({'message': 'Invalid email or password'}), 401
 
-
 @auth_bp.route('/user-details-status/<int:user_id>', methods=['GET'])
 def get_user_details_status(user_id):
-    # Query User, UserProfile, and InsurancePlans using correct joins
-    user_data = db.session.query(User, UserProfile, InsurancePlans).join(
+    # Query User and UserProfile using correct joins, without including InsurancePlans
+    user_data = db.session.query(User, UserProfile).join(
         UserProfile, User.user_id == UserProfile.user_id
-    ).outerjoin(
-        InsurancePlans, User.user_id == InsurancePlans.user_id
     ).filter(User.user_id == user_id).first()
     
     if not user_data:
         return jsonify({'message': 'User not found'}), 404
     
-    user, user_profile, insurance_plan = user_data
+    user, user_profile = user_data
 
     return jsonify({
         'UserID': user.user_id,
         'UserDetails': user.user_details,
-        'FullName': user_profile.full_name,
-        'InsurancePolicyFileLink': insurance_plan.file_link if insurance_plan else None  # Return None if no insurance plan exists
+        'FullName': user_profile.full_name
     }), 200

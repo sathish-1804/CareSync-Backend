@@ -44,38 +44,6 @@ def upload_file_and_get_url(file):
         print(f"Error uploading file: {e}")
         raise
 
-def upload_insurance(file, filename):
-    connection_str = os.getenv("AZURE_CONNECTION_STR")
-    container_name = 'storage-container'
-    blob_service_client = BlobServiceClient.from_connection_string(conn_str=connection_str)
-    
-    try:
-        # Use the provided filename
-        encoded_filename = urllib.parse.quote(filename)
-        container_client = blob_service_client.get_container_client(container=container_name)
-
-        # Upload the blob
-        container_client.upload_blob(name=filename, data=file, overwrite=True)
-        start_time = datetime.utcnow()
-        expiry_time = start_time + timedelta(hours=1)
-        sas_token = generate_blob_sas(
-            account_name=blob_service_client.account_name,
-            container_name=container_name,
-            blob_name=filename,
-            account_key=blob_service_client.credential.account_key,
-            permission=BlobSasPermissions(read=True),
-            expiry=expiry_time,
-            start=start_time
-        )
-
-        # Generate the blob URL
-        blob_url = f"https://{blob_service_client.account_name}.blob.core.windows.net/{container_name}/{encoded_filename}?{sas_token}"
-        return blob_url
-
-    except Exception as e:
-        print(f"Error uploading file: {e}")
-        raise
-
 def safe_float(value, default=None):
     try:
         return float(value) if value is not None else default

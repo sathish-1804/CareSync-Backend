@@ -141,10 +141,8 @@ class InsurancePlans(db.Model):
     sum_insured = db.Column(db.Numeric(15, 2))
     deductible = db.Column(db.String(20))
     out_of_pocket_max = db.Column(db.String(20))
-    policy_number = db.Column(db.String(20))
     effective_date = db.Column(db.Date)
     expiration_date = db.Column(db.Date)
-    file_link = db.Column(db.Text, nullable=False)
 
     user = db.relationship('User', back_populates='insurance_plans')
 

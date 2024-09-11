@@ -40,7 +40,6 @@ def generate_health_tip(user_profile, lifestyle_info):
 @dashboard_bp.route('/dashboard/<int:user_id>', methods=['GET'])
 def get_dashboard_data(user_id):
     try:
-        
         user_profile = UserProfile.query.filter_by(user_id=user_id).first()
         lifestyle_info = LifestyleInformation.query.filter_by(user_id=user_id).first()
         ml_model_data = MLModelData.query.filter_by(user_id=user_id).first()
