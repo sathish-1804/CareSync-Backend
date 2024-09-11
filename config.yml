@@ -1,0 +1,75 @@
+insurance:
+  companies:
+    - "LIC Health"
+    - "Star Health"
+    - "Bajaj Allianz"
+    - "ICICI Lombard"
+    - "Apollo Munich"
+  plan_types:
+    - "Individual"
+    - "Senior Citizen"
+    - "Critical Illness"
+  network_types:
+    - "HMO"
+    - "PPO"
+    - "EPO"
+  base_premium:
+    Bronze: 1000
+    Silver: 2000
+    Gold: 3500
+    Platinum: 5000
+  base_multiplier:
+    Bronze: 3
+    Silver: 4
+    Gold: 5
+    Platinum: 6
+  base_deductible:
+    Bronze: 50000
+    Silver: 25000
+    Gold: 15000
+    Platinum: 10000
+  base_out_of_pocket_max:
+    Bronze: 300000
+    Silver: 200000
+    Gold: 150000
+    Platinum: 100000
+  base_copay:
+    Bronze: 500
+    Silver: 400
+    Gold: 300
+    Platinum: 200
+  coverage:
+    basic:
+      - "Inpatient Hospitalization"
+      - "Outpatient Procedures"
+      - "Emergency Services"
+      - "Preventive Care (100% covered)"
+      - "Prescription Drugs"
+      - "Mental Health Services"
+      - "Maternity and Newborn Care"
+    additional:
+      - "Out-of-network Care (with higher costs)"
+    gold_platinum:
+      - "Dental Check-ups"
+      - "Vision Care"
+  benefits:
+    - "Telemedicine Services"
+    - "Wellness Programs"
+    - "Health Coaching"
+    - "Gym Membership Discounts"
+    - "Alternative Medicine Coverage"
+    - "International Emergency Coverage"
+    - "Second Opinion Services"
+    - "Chronic Disease Management Programs"
+  exclusions:
+    - "Pre-existing conditions not disclosed at the time of policy purchase"
+    - "Cosmetic treatments"
+    - "Self-inflicted injuries"
+    - "Injuries resulting from war or terrorist activities"
+    - "Experimental treatments"
+    - "Injuries from hazardous sports without prior approval"
+  waiting_periods:
+    general: 30
+    pre_existing_high: 48
+    pre_existing_low: 36
+    specific_procedures: 24

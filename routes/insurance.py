@@ -2,6 +2,11 @@ from flask import Blueprint, jsonify
 from models import db, User, UserProfile, HealthInformation, LifestyleInformation, MLModelData, PredictionResults, InsurancePlans, CoverageDetails, Copayments, AdditionalBenefits, PolicyExclusions
 from datetime import date, timedelta
 import random
+import yaml
+
+# Load YAML configuration
+with open('config.yml', 'r') as file:
+    insurance_config = yaml.safe_load(file)['insurance']
 
 # Initialize blueprint
 insurance_bp = Blueprint('insurance', __name__)
@@ -9,9 +14,9 @@ insurance_bp = Blueprint('insurance', __name__)
 # Insurance Plan Generator
 class InsurancePlanGenerator:
     def __init__(self):
-        self.companies = ["LIC Health", "Star Health", "Bajaj Allianz", "ICICI Lombard", "Apollo Munich"]
-        self.plan_types = ["Individual", "Senior Citizen", "Critical Illness"]
-        self.network_types = ["HMO", "PPO", "EPO"]
+        self.companies = insurance_config['companies']
+        self.plan_types = insurance_config['plan_types']
+        self.network_types = insurance_config['network_types']
 
     def generate_plan(self, user_profile, health_info, lifestyle_info, ml_model_data, risk_predictions):
         plan = self._generate_fallback_plan(user_profile, health_info, lifestyle_info, ml_model_data, risk_predictions)
@@ -81,14 +86,14 @@ class InsurancePlanGenerator:
         return "Individual"
 
     def _calculate_premium(self, risk_score, coverage_type, user_profile, risk_predictions):
-        base_premium = {"Bronze": 1000, "Silver": 2000, "Gold": 3500, "Platinum": 5000}[coverage_type]
+        base_premium = insurance_config['base_premium'][coverage_type]
         age_factor = 1 + (user_profile.age - 18) * 0.02
         risk_factor = 1 + (risk_score * 0.5)
         premium = base_premium * age_factor * risk_factor
         return round(max(500, min(20000, premium)), 2)
 
     def _calculate_sum_insured(self, coverage_type, annual_income, risk_predictions):
-        base_multiplier = {"Bronze": 3, "Silver": 4, "Gold": 5, "Platinum": 6}[coverage_type]
+        base_multiplier = insurance_config['base_multiplier'][coverage_type]
         risk_factor = 1.0
         high_risk_count = sum(1 for risk in risk_predictions if risk.risk_level == 'High')
         risk_factor += (high_risk_count * 0.1)
@@ -97,17 +102,17 @@ class InsurancePlanGenerator:
         return round(sum_insured, -5)
 
     def _calculate_deductible(self, coverage_type, risk_score):
-        base_deductible = {"Bronze": 50000, "Silver": 25000, "Gold": 15000, "Platinum": 10000}[coverage_type]
+        base_deductible = insurance_config['base_deductible'][coverage_type]
         risk_adjusted_deductible = base_deductible * (1 + risk_score)
         return f"₹{int(risk_adjusted_deductible)}"
 
     def _calculate_out_of_pocket_max(self, coverage_type, risk_score):
-        base_oop = {"Bronze": 300000, "Silver": 200000, "Gold": 150000, "Platinum": 100000}[coverage_type]
+        base_oop = insurance_config['base_out_of_pocket_max'][coverage_type]
         risk_adjusted_oop = base_oop * (1 + (risk_score * 0.5))
         return f"₹{int(risk_adjusted_oop)}"
 
     def _generate_copayments(self, coverage_type, risk_score):
-        base_copay = {"Bronze": 500, "Silver": 400, "Gold": 300, "Platinum": 200}[coverage_type]
+        base_copay = insurance_config['base_copay'][coverage_type]
         risk_adjusted_copay = int(base_copay * (1 + (risk_score * 0.5)))
         return {
             "Primary Care Visit": f"₹{risk_adjusted_copay}",
@@ -117,35 +122,18 @@ class InsurancePlanGenerator:
         }
 
     def _generate_coverage_details(self, coverage_type, network_type, risk_predictions):
-        coverage = [
-            "Inpatient Hospitalization",
-            "Outpatient Procedures",
-            "Emergency Services",
-            "Preventive Care (100% covered)",
-            "Prescription Drugs",
-            "Mental Health Services",
-            "Maternity and Newborn Care"
-        ]
+        coverage = insurance_config['coverage']['basic']
         if network_type == "PPO":
-            coverage.append("Out-of-network Care (with higher costs)")
+            coverage.extend(insurance_config['coverage']['additional'])
         if coverage_type in ["Gold", "Platinum"]:
-            coverage.extend(["Dental Check-ups", "Vision Care"])
+            coverage.extend(insurance_config['coverage']['gold_platinum'])
         for risk in risk_predictions:
             if risk.risk_level == 'High':
                 coverage.append(f"Enhanced coverage for {risk.condition_name.replace('_', ' ')}")
         return coverage
 
     def _determine_benefits(self, coverage_type, risk_score, risk_predictions):
-        all_benefits = [
-            "Telemedicine Services",
-            "Wellness Programs",
-            "Health Coaching",
-            "Gym Membership Discounts",
-            "Alternative Medicine Coverage",
-            "International Emergency Coverage",
-            "Second Opinion Services",
-            "Chronic Disease Management Programs"
-        ]
+        all_benefits = insurance_config['benefits']
         num_benefits = {"Bronze": 2, "Silver": 3, "Gold": 4, "Platinum": 5}[coverage_type]
         benefits = random.sample(all_benefits, num_benefits)
         if any(risk.condition_name == 'Heart_Disease_Risk' and risk.risk_level == 'High' for risk in risk_predictions):
@@ -157,21 +145,14 @@ class InsurancePlanGenerator:
         return benefits
 
     def _generate_general_exclusions(self):
-        exclusions = [
-            "Pre-existing conditions not disclosed at the time of policy purchase",
-            "Cosmetic treatments",
-            "Self-inflicted injuries",
-            "Injuries resulting from war or terrorist activities",
-            "Experimental treatments",
-            "Injuries from hazardous sports without prior approval"
-        ]
+        exclusions = insurance_config['exclusions']
         return random.sample(exclusions, 3)
 
     def _generate_waiting_periods(self, risk_predictions):
         waiting_periods = {
-            "General Waiting Period": 30,
-            "Pre-existing Diseases": 48 if any(risk.risk_level == 'High' for risk in risk_predictions) else 36,
-            "Specific Procedures": 24
+            "General Waiting Period": insurance_config['waiting_periods']['general'],
+            "Pre-existing Diseases": insurance_config['waiting_periods']['pre_existing_high'] if any(risk.risk_level == 'High' for risk in risk_predictions) else insurance_config['waiting_periods']['pre_existing_low'],
+            "Specific Procedures": insurance_config['waiting_periods']['specific_procedures']
         }
         return waiting_periods
 
