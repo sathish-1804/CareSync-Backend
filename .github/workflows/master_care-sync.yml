@@ -12,29 +12,31 @@ env:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+
     steps:
-    - name: 'Checkout code'
-      uses: actions/checkout@v4
-    
-    - name: 'Login to Azure'
-      uses: azure/login@v2
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v2
       with:
-        creds: ${{ secrets.AZURE_CREDENTIALS }}
-    
-    - name: 'Login to Azure Container Registry'
-      uses: azure/docker-login@v1
+        username: ${{ secrets.DOCKER_HUB_USERNAME }}  # Set up as GitHub secret
+        password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}  # Set up as GitHub secret
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v4
       with:
-        login-server: ${{ secrets.CONTAINER_REGISTRY }}
-        username: ${{ secrets.REGISTRY_USERNAME }}
-        password: ${{ secrets.REGISTRY_PASSWORD }}
-    
-    - name: 'Build and push Docker image'
-      run: |
-        docker build . -t ${{ secrets.CONTAINER_REGISTRY }}/${{ secrets.AZURE_FUNCTIONAPP_NAME }}:${{ github.sha }}
-        docker push ${{ secrets.CONTAINER_REGISTRY }}/${{ secrets.AZURE_FUNCTIONAPP_NAME }}:${{ github.sha }}
-    
-    - name: 'Deploy to Azure Functions'
-      uses: Azure/functions-container-action@v1
+        context: .
+        push: true
+        tags: ${{ secrets.DOCKER_HUB_USERNAME }}/my-docker-app:latest
+
+    - name: Deploy to Azure Web App
+      uses: azure/webapps-deploy@v2
       with:
-        app-name: ${{ secrets.AZURE_FUNCTIONAPP_NAME }}
-        image: ${{ secrets.CONTAINER_REGISTRY }}/${{ secrets.AZURE_FUNCTIONAPP_NAME }}:${{ github.sha }}
+        app-name: 'care-sync'
+        slot-name: 'production'
+        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+        images: ${{ secrets.DOCKER_IMAGE_NAME }}
