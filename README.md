@@ -1,6 +1,3 @@
-##  DataBase Schema
-![Database schema](https://github.com/user-attachments/assets/b05d88a6-df94-48d4-bacd-5d3e8f98a0d4)
 
-
-## Flow
-![Untitled diagram-2024-09-09-210941](https://github.com/user-attachments/assets/d136637e-e351-4ed2-a2cf-e7936b1bb90f)
+## CI/CD Flow
+![resized_flow](https://github.com/user-attachments/assets/6d64b6b7-a1ca-4af9-8a0d-cd27f303e812)
