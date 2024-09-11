@@ -211,7 +211,6 @@ def generate_plan(user_id):
                 sum_insured=plan['sum_insured'],
                 deductible=plan['deductible'],
                 out_of_pocket_max=plan['out_of_pocket_max'],
-                policy_number=plan['policy_number'],
                 effective_date=plan['effective_date'],
                 expiration_date=plan['expiration_date']
             )
@@ -261,7 +260,6 @@ def generate_plan(user_id):
                 'sum_insured': plan['sum_insured'],
                 'deductible': plan['deductible'],
                 'out_of_pocket_max': plan['out_of_pocket_max'],
-                'policy_number': plan['policy_number'],
                 'effective_date': plan['effective_date'].strftime('%Y-%m-%d'),
                 'expiration_date': plan['expiration_date'].strftime('%Y-%m-%d'),
                 'coverage_details': coverage_details_list,
